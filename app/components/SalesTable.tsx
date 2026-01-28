@@ -1,10 +1,9 @@
 "use client";
-import { Sale } from "@/types/sale";
+
 import { useEffect, useState } from "react";
+import { Sale } from "@/types/sale";
 import AddSaleModal from "./AddSaleModal";
 import Pagination from "./Pagination";
-
-
 
 export default function SalesTable({
   activeSale,
@@ -15,28 +14,36 @@ export default function SalesTable({
 }) {
   const [open, setOpen] = useState(false);
   const [sales, setSales] = useState<Sale[]>([]);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [originalSales, setOriginalSales] = useState<Sale[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
-  // ✅ FETCH SALES FROM MONGODB
+  // ✅ FETCH SALES FROM API (SAFE)
   useEffect(() => {
     fetch("/api/sales")
       .then((res) => res.json())
       .then((data) => {
-        setSales(data);
-        setOriginalSales(data); // keep copy for reset after filter
+        if (Array.isArray(data)) {
+          setSales(data);
+          setOriginalSales(data);
+        } else {
+          setSales([]);
+          setOriginalSales([]);
+        }
       })
-      .catch(() => console.error("Failed to fetch sales"));
+      .catch(() => {
+        setSales([]);
+        setOriginalSales([]);
+      });
   }, []);
 
   // ✅ DELETE HANDLER
   const handleDelete = async () => {
     if (selectedIds.length === 0) {
-      alert("Please select at least one sale to delete");
+      alert("Select at least one sale to delete");
       return;
     }
 
-    if (!confirm("Are you sure you want to delete selected sales?")) return;
+    if (!confirm("Are you sure?")) return;
 
     await Promise.all(
       selectedIds.map((id) =>
@@ -53,12 +60,12 @@ export default function SalesTable({
     setSelectedIds([]);
   };
 
-  // ✅ FILTER HANDLER (Open sales only)
+  // ✅ FILTER (OPEN ONLY)
   const handleFilter = () => {
     setSales(originalSales.filter((sale) => sale.status === "Open"));
   };
 
-  // ✅ EXPORT HANDLER (CSV)
+  // ✅ EXPORT CSV
   const handleExport = () => {
     if (sales.length === 0) {
       alert("No data to export");
@@ -97,7 +104,7 @@ export default function SalesTable({
         <h3 className="font-semibold text-sm">Sales</h3>
         <button
           onClick={() => setOpen(true)}
-          className="bg-emerald-600 text-white text-sm px-4 py-2 rounded hover:bg-emerald-700"
+          className="bg-emerald-600 text-white px-4 py-2 rounded"
         >
           + New
         </button>
@@ -106,17 +113,17 @@ export default function SalesTable({
       {/* Table */}
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-gray-600 border-b">
+          <thead className="bg-gray-50 border-b">
             <tr>
-              <th className="w-10 px-3 py-2 text-center">
+              <th className="px-3 py-2">
                 <input type="checkbox" disabled />
               </th>
-              <th className="px-3 py-2 text-left">Status</th>
-              <th className="px-3 py-2">Sale date</th>
-              <th className="px-3 py-2">Amount</th>
-              <th className="px-3 py-2">Stage</th>
-              <th className="px-3 py-2">Next activity</th>
-              <th className="px-3 py-2">Sale name</th>
+              <th>Status</th>
+              <th>Sale Date</th>
+              <th>Amount</th>
+              <th>Stage</th>
+              <th>Next Activity</th>
+              <th>Sale Name</th>
             </tr>
           </thead>
 
@@ -125,43 +132,40 @@ export default function SalesTable({
               <tr
                 key={sale._id}
                 onClick={() => onSelectSale(sale)}
-                className={`border-b cursor-pointer hover:bg-emerald-50 ${
+                className={`border-b hover:bg-emerald-50 cursor-pointer ${
                   activeSale?._id === sale._id ? "bg-emerald-50" : ""
                 }`}
               >
-                <td className="px-3 py-3 text-center">
+                <td className="text-center">
                   <input
                     type="checkbox"
                     checked={selectedIds.includes(sale._id!)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setSelectedIds((prev) => [...prev, sale._id!]);
-                      } else {
-                        setSelectedIds((prev) =>
-                          prev.filter((id) => id !== sale._id)
-                        );
-                      }
-                    }}
                     onClick={(e) => e.stopPropagation()}
+                    onChange={(e) =>
+                      setSelectedIds((prev) =>
+                        e.target.checked
+                          ? [...prev, sale._id!]
+                          : prev.filter((id) => id !== sale._id)
+                      )
+                    }
                   />
                 </td>
 
-                <td className="px-3 py-3">
+                <td>
                   <span
-                    className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
+                    className={`px-2 py-1 rounded-full text-xs ${
                       statusStyles[sale.status]
                     }`}
                   >
-                    <span className="w-2 h-2 bg-current rounded-full" />
                     {sale.status}
                   </span>
                 </td>
 
-                <td className="px-3 py-3">{sale.saleDate}</td>
-                <td className="px-3 py-3">€ {sale.amount}</td>
-                <td className="px-3 py-3">{sale.stage}</td>
-                <td className="px-3 py-3">{sale.nextActivity}</td>
-                <td className="px-3 py-3">{sale.saleName}</td>
+                <td>{sale.saleDate}</td>
+                <td>€ {sale.amount}</td>
+                <td>{sale.stage}</td>
+                <td>{sale.nextActivity}</td>
+                <td>{sale.saleName}</td>
               </tr>
             ))}
           </tbody>
@@ -169,34 +173,13 @@ export default function SalesTable({
       </div>
 
       {/* Action bar */}
-      <div className="flex gap-6 px-4 py-3 text-sm text-gray-500 border-t">
-        <button
-          onClick={() => setOpen(true)}
-          className="flex items-center gap-1 hover:text-emerald-600"
-        >
-          ➕ Add
-        </button>
-
-        <button
-          onClick={handleDelete}
-          className="flex items-center gap-1 hover:text-red-600"
-        >
+      <div className="flex gap-6 px-4 py-3 border-t text-sm">
+        <button onClick={() => setOpen(true)}>➕ Add</button>
+        <button onClick={handleDelete} className="text-red-600">
           🗑 Delete
         </button>
-
-        <button
-          onClick={handleFilter}
-          className="flex items-center gap-1 hover:text-blue-600"
-        >
-          🔍 Filter
-        </button>
-
-        <button
-          onClick={handleExport}
-          className="flex items-center gap-1 hover:text-gray-800"
-        >
-          ⬇ Export
-        </button>
+        <button onClick={handleFilter}>🔍 Filter</button>
+        <button onClick={handleExport}>⬇ Export</button>
       </div>
 
       <Pagination />
@@ -204,9 +187,9 @@ export default function SalesTable({
       {open && (
         <AddSaleModal
           onClose={() => setOpen(false)}
-          onSave={(savedSale) => {
-            setSales((prev) => [...prev, savedSale]);
-            setOriginalSales((prev) => [...prev, savedSale]);
+          onSave={(sale) => {
+            setSales((prev) => [...prev, sale]);
+            setOriginalSales((prev) => [...prev, sale]);
             setOpen(false);
           }}
         />
